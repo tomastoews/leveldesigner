@@ -15,6 +15,5 @@ fi
 for file in $(ls $folder);
 do
 	number="$(echo $file | grep --only-matching '[0-9][0-9]*')"
-	echo "$folder/$number.png"
-	# [ -n $number ] && mv $folder/$file "$folder/$number.png" && echo $number
+	[ -n $number ] && mv $folder/$file "$folder/$number.png"
 done
