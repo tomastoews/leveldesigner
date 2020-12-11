@@ -12,6 +12,7 @@ import pygame.locals
 pygame.init()
 
 FIELD_SIZE = 50
+BUTTON_SIZE = 40
 
 size = width, height = FIELD_SIZE*17, FIELD_SIZE*14
 fps = 60
@@ -30,14 +31,14 @@ CROSS_COLOR = WHITE
 all_fields = []
 fields = []
 map_fields = []
-fields_in_elements_panel = []
+buttons = []
 visible_fields_min_index = 0
 visible_fields_max_index = 0
 
-font_1 = "./resources/fonts/Kenney_Mini_Square.ttf"
+field_delete_mode = False
 
 dragging_field = None
-is_dragging = False
+field_drag_mode = False
 field_original_pos = None
 field_dragging_id = None
 highlighted_field = None
@@ -57,10 +58,39 @@ panel_end_x = inventary_panel_x+(FIELD_SIZE*5)+border_thickness
 panel_start_y = inventary_panel_y
 panel_end_y = height-(FIELD_SIZE+border_thickness)
 
+font_1 = "./resources/fonts/Kenney_Mini_Square.ttf"
 textures_path = "./resources/textures/road2"
+buttons_path = "./resources/textures/buttons"
 
 if border_thickness % 2 != 0:
     raise Exception("border_thickness must be an even number")
+
+class Button(pygame.Rect):
+    def __init__(self, x, y):
+        super().__init__(self)
+        self.x = x
+        self.y = y
+        self.width = BUTTON_SIZE
+        self.height = BUTTON_SIZE
+
+    def set_image(self, image):
+        self.iamge_path = image
+        self.image = pygame.image.load(os.path.join(buttons_path, image)).convert()
+        self.image = pygame.transform.scale(self.image, (self.width, self.height))
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+class DeleteButton(Button):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+
+    def click_event(self):
+        global field_delete_mode
+        print("Delete Button clicked")
+        field_delete_mode = not field_delete_mode
+        print(field_delete_mode)
+
 
 class Field(pygame.Rect):
     def __init__(self, x, y):
@@ -97,6 +127,20 @@ def load_fields():
     visible_fields_min_index = 0
     visible_fields_max_index = len(all_fields) if len(all_fields) < 40 else 40
     fields = all_fields[visible_fields_min_index:visible_fields_max_index]
+
+def create_ui_elements():
+    global toolbar_panel, elements_panel, map_panel, buttons
+
+    toolbar_panel = pygame.Rect(FIELD_SIZE, FIELD_SIZE, width-(FIELD_SIZE*2)+(border_thickness*1.5), FIELD_SIZE)
+    elements_panel = pygame.Rect(FIELD_SIZE, FIELD_SIZE*3, FIELD_SIZE*4+(border_thickness*1.5), height-FIELD_SIZE*4+(border_thickness*1.5))
+    map_panel = pygame.Rect(FIELD_SIZE*6, FIELD_SIZE*3, FIELD_SIZE*10+(border_thickness*1.5), height-FIELD_SIZE*4+(border_thickness*1.5))
+
+    button_delete = DeleteButton(
+        x=toolbar_panel.x + toolbar_panel.width - (BUTTON_SIZE*1.5),
+        y=toolbar_panel.y + (toolbar_panel.height/2) - (BUTTON_SIZE/2)
+    )
+    button_delete.set_image("delete.png")
+    buttons.append(button_delete)
 
 def is_field_within_map(x, y):
     center_point_x = x+(FIELD_SIZE/2)
@@ -139,7 +183,7 @@ def get_nearest_field(x, y):
                 break
 
 def set_dragging_field_position(x, y):
-    global is_dragging, dragging_field, field_original_pos
+    global field_drag_mode, dragging_field, field_original_pos
     # Check if a field from the elements panel or the map is being moved
     if is_field_within_elements_panel(field_original_pos[0], field_original_pos[1]):
         dragging_field.rect.x = x
@@ -172,17 +216,16 @@ def is_map_field_occupied(x, y):
         return False
 
 def draw():
-    global dragging_field, highlighted_field, visible_fields_min_index, visible_fields_max_index, border_thickness
+    global toolbar_panel, elements_panel, map_panel, buttons, dragging_field, highlighted_field, visible_fields_min_index, visible_fields_max_index, border_thickness, field_delete_mode
 
-    toolbar_panel = pygame.Rect(FIELD_SIZE, FIELD_SIZE, width-(FIELD_SIZE*2)+(border_thickness*1.5), FIELD_SIZE)
-    elements_panel = pygame.Rect(FIELD_SIZE, FIELD_SIZE*3, FIELD_SIZE*4+(border_thickness*1.5), height-FIELD_SIZE*4+(border_thickness*1.5))
-    map_panel = pygame.Rect(FIELD_SIZE*6, FIELD_SIZE*3, FIELD_SIZE*10+(border_thickness*1.5), height-FIELD_SIZE*4+(border_thickness*1.5))
-
-    print(f"width: {map_panel.width} | height: {map_panel.height}")
-
+    # Draw UI elements
     pygame.draw.rect(screen, WHITE, toolbar_panel, border_thickness)
     pygame.draw.rect(screen, WHITE, elements_panel, border_thickness)
     pygame.draw.rect(screen, WHITE, map_panel, border_thickness)
+
+    # Draw buttons
+    for button in buttons:
+        screen.blit(button.image, button.rect)
 
     # Draw text
     font_file = pygame.font.match_font("Arial")
@@ -210,7 +253,7 @@ def draw():
         screen.blit(map_field.image, map_field.rect)
 
     # Draw hightlighted field
-    if is_dragging and highlighted_field:
+    if field_drag_mode and highlighted_field:
         x, y = get_dragging_field_position()
         if is_field_within_map(x, y):
             h_f = pygame.Rect(highlighted_field[0], highlighted_field[1], FIELD_SIZE, FIELD_SIZE)
@@ -235,7 +278,8 @@ def draw():
 
     # Draw cursor
     x, y = pygame.mouse.get_pos()
-    if is_dragging:
+
+    if field_drag_mode and not field_delete_mode:
         # Draw dragging graphic
         lines = [
             ((x-(FIELD_SIZE/2), y-(FIELD_SIZE/2)), (x-(FIELD_SIZE/4), y-(FIELD_SIZE/2))),
@@ -250,6 +294,14 @@ def draw():
         ]
         for line in lines:
             pygame.draw.line(screen, WHITE, line[0], line[1], border_thickness)
+    elif field_delete_mode:
+        lines = [
+            ((x-15, y-15), (x+15, y+15)),
+            ((x+15, y-15), (x-15, y+15))
+        ]
+
+        for line in lines:
+            pygame.draw.line(screen, RED, line[0], line[1], border_thickness)
     else:
         # Draw Cross
         pygame.draw.line(screen, CROSS_COLOR, (x-15,y), (x+15,y), border_thickness)
@@ -257,7 +309,7 @@ def draw():
 
 
 def events():
-    global is_dragging, dragging_field, field_dragging_id, all_fields, fields, map_fields, highlighted_field, field_original_pos, visible_fields_min_index, visible_fields_max_index
+    global field_drag_mode, dragging_field, field_dragging_id, buttons, fields, map_fields, highlighted_field, field_original_pos, visible_fields_min_index, visible_fields_max_index
 
     for event in pygame.event.get():
         #print(pygame.event.event_name(event.type))
@@ -290,7 +342,7 @@ def events():
                         fields = all_fields[visible_fields_min_index:visible_fields_max_index]
 
         if event.type == pygame.MOUSEMOTION:
-            if is_dragging:
+            if field_drag_mode and not field_delete_mode:
                 mouse_pos = pygame.mouse.get_pos()
                 x = mouse_pos[0]-(FIELD_SIZE/2)
                 y = mouse_pos[1]-(FIELD_SIZE/2)
@@ -303,7 +355,7 @@ def events():
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             # Get field that is clicked by the cursor
-            if not is_dragging:
+            if not field_drag_mode and not field_delete_mode:
                 mouse_pos = pygame.mouse.get_pos()
 
                 # Elements panel fields
@@ -318,7 +370,7 @@ def events():
                         field_original_pos = (x, y)
                         highlighted_field = (x, y)
                         pygame.mouse.set_pos(x+(FIELD_SIZE/2), y+(FIELD_SIZE/2))
-                        is_dragging = True
+                        field_drag_mode = True
 
                 # Map fields
                 for i in range(len(map_fields)):
@@ -330,10 +382,25 @@ def events():
                         field_original_pos = (x, y)
                         pygame.mouse.set_pos(x+(FIELD_SIZE/2), y+(FIELD_SIZE/2))
                         dragging_field = None
-                        is_dragging = True
+                        field_drag_mode = True
+
+            # If in deleting mode, delete the field that is under the cursor
+            if field_delete_mode:
+                mouse_pos = pygame.mouse.get_pos()
+                for field in map_fields:
+                    if field.rect.collidepoint(mouse_pos):
+                        map_fields.remove(field)
+
+            # Buttons
+            if not field_drag_mode:
+                mouse_pos = pygame.mouse.get_pos()
+                for button in buttons:
+                    if button.rect.collidepoint(mouse_pos):
+                        button.click_event()
+
 
         if event.type == pygame.MOUSEBUTTONUP:
-            if is_dragging:
+            if field_drag_mode:
                 # Drop field
 
                 x, y = get_dragging_field_position()
@@ -354,8 +421,9 @@ def events():
                 field_dragging_id = None
                 field_original_pos = None
                 dragging_field = None
-                is_dragging = False
+                field_drag_mode = False
 
+create_ui_elements()
 load_fields()
 
 while True:
