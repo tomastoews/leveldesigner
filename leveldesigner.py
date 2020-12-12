@@ -8,6 +8,7 @@ hello@tomastoews.de
 import os, sys, time
 import pygame
 import pygame.locals
+from tkinter import Tk, filedialog
 
 pygame.init()
 
@@ -20,6 +21,10 @@ pygame.mouse.set_visible(False)
 
 pygame.display.init()
 screen = pygame.display.set_mode(size)
+
+tk_root = Tk()
+tk_root.overrideredirect(1)
+tk_root.withdraw()
 
 WHITE = (255,255,255)
 GREEN = (0,255,0)
@@ -87,10 +92,16 @@ class DeleteButton(Button):
 
     def click_event(self):
         global field_delete_mode
-        print("Delete Button clicked")
         field_delete_mode = not field_delete_mode
         print(field_delete_mode)
 
+class SaveButton(Button):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+
+    def click_event(self):
+        file_path = filedialog.asksaveasfilename()
+        save_map(file_path)
 
 class Field(pygame.Rect):
     def __init__(self, x, y):
@@ -136,11 +147,18 @@ def create_ui_elements():
     map_panel = pygame.Rect(FIELD_SIZE*6, FIELD_SIZE*3, FIELD_SIZE*10+(border_thickness*1.5), height-FIELD_SIZE*4+(border_thickness*1.5))
 
     button_delete = DeleteButton(
-        x=toolbar_panel.x + toolbar_panel.width - (BUTTON_SIZE*1.5),
+        x=toolbar_panel.x + toolbar_panel.width - (BUTTON_SIZE*1.2),
         y=toolbar_panel.y + (toolbar_panel.height/2) - (BUTTON_SIZE/2)
     )
     button_delete.set_image("delete.png")
     buttons.append(button_delete)
+
+    button_save = SaveButton(
+        x=toolbar_panel.x + toolbar_panel.width - (BUTTON_SIZE*2.2),
+        y=toolbar_panel.y + (toolbar_panel.height/2) - (BUTTON_SIZE/2)
+    )
+    button_save.set_image("save.png")
+    buttons.append(button_save)
 
 def is_field_within_map(x, y):
     center_point_x = x+(FIELD_SIZE/2)
