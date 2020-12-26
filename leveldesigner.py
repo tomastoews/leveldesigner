@@ -5,13 +5,14 @@ Copyright 2020 Tomas Töws
 hello@tomastoews.de
 '''
 
-import os, sys, time
+import os, sys, io, time
 import pygame
 import pygame.locals
 
 from enums import modes, cursor_modes
 from constants import size, width, height, fps, colors, border_thickness, FIELD_SIZE, BUTTON_SIZE, textures_path, font_1
-from elements import Panel, ScrollablePanel, Button, DeleteButton, SaveButton, Field
+from elements import Panel, ScrollablePanel, Button, DeleteButton, SaveButton, OpenButton, EditButton, Field
+from resource_service import resource_service
 from cursor import cursor
 import state
 
@@ -38,15 +39,19 @@ def load_fields():
     for field_type in ["ground", "object"]:
 
         # Load fileds
-        directory = f"{textures_path}/{field_type}s"
-        texture_files = os.listdir(directory)
+        texture_files = os.listdir(f"{textures_path}/{field_type}s")
         texture_files.sort()
         row_count = 0
         column_count = 0
 
         for texture_file in texture_files:
             field = Field(x=0,y=0, width=FIELD_SIZE, height=FIELD_SIZE, field_type=field_type)
-            field.set_image(f"{directory}/{texture_file}")
+            field.set_image(resource_service.load_field_texture(field_type=field_type, texture_name=texture_file))
+            test_field = Field(x=0,y=0, width=FIELD_SIZE, height=FIELD_SIZE, field_type=field_type)
+            image_data = resource_service.load_field_texture(field_type=field_type, texture_name=texture_file)
+            test_field.set_image(image_data)
+            test_field_2 = Field(x=0,y=0, width=FIELD_SIZE, height=FIELD_SIZE, field_type=field_type)
+            test_field_2.set_image(test_field.image_data)
             if field_type == "ground":
                 state.all_ground_fields.append(field)
             elif field_type == "object":
@@ -120,7 +125,7 @@ def init():
         width=BUTTON_SIZE,
         height=BUTTON_SIZE
     )
-    button_delete.set_image("delete.png")
+    button_delete.set_image(resource_service.load_button_texture("delete.png"))
     state.buttons.append(button_delete)
 
     button_save = SaveButton(
@@ -129,8 +134,26 @@ def init():
         width=BUTTON_SIZE,
         height=BUTTON_SIZE
     )
-    button_save.set_image("save.png")
+    button_save.set_image(resource_service.load_button_texture("save.png"))
     state.buttons.append(button_save)
+
+    button_open = OpenButton(
+        x=toolbar_panel.x + toolbar_panel.width - (BUTTON_SIZE*3.2),
+        y=toolbar_panel.y + (toolbar_panel.height/2) - (BUTTON_SIZE/2),
+        width=BUTTON_SIZE,
+        height=BUTTON_SIZE
+    )
+    button_open.set_image(resource_service.load_button_texture("open.png"))
+    state.buttons.append(button_open)
+
+    button_edit = EditButton(
+        x=toolbar_panel.x + toolbar_panel.width - (BUTTON_SIZE*4.2),
+        y=toolbar_panel.y + (toolbar_panel.height/2) - (BUTTON_SIZE/2),
+        width=BUTTON_SIZE,
+        height=BUTTON_SIZE
+    )
+    button_edit.set_image(resource_service.load_button_texture("edit.png"))
+    state.buttons.append(button_edit)
 
     button_ground_fields_panel_scroll_up = Button(
         x=ground_fields_panel.x + (FIELD_SIZE/2) - (BUTTON_SIZE/2),
@@ -138,7 +161,7 @@ def init():
         width=BUTTON_SIZE,
         height=BUTTON_SIZE
     )
-    button_ground_fields_panel_scroll_up.set_image("up.png")
+    button_ground_fields_panel_scroll_up.set_image(resource_service.load_button_texture("up.png"))
     button_ground_fields_panel_scroll_up.set_click_method(ground_fields_panel.scroll_up)
     state.buttons.append(button_ground_fields_panel_scroll_up)
 
@@ -148,7 +171,7 @@ def init():
         width=BUTTON_SIZE,
         height=BUTTON_SIZE
     )
-    button_ground_fields_panel_scroll_down.set_image("down.png")
+    button_ground_fields_panel_scroll_down.set_image(resource_service.load_button_texture("down.png"))
     button_ground_fields_panel_scroll_down.set_click_method(ground_fields_panel.scroll_down)
     state.buttons.append(button_ground_fields_panel_scroll_down)
 
@@ -158,7 +181,7 @@ def init():
         width=BUTTON_SIZE,
         height=BUTTON_SIZE
     )
-    button_object_fields_panel_scroll_up.set_image("up.png")
+    button_object_fields_panel_scroll_up.set_image(resource_service.load_button_texture("up.png"))
     button_object_fields_panel_scroll_up.set_click_method(object_fields_panel.scroll_up)
     state.buttons.append(button_object_fields_panel_scroll_up)
 
@@ -168,7 +191,7 @@ def init():
         width=BUTTON_SIZE,
         height=BUTTON_SIZE
     )
-    button_object_fields_panel_scroll_down.set_image("down.png")
+    button_object_fields_panel_scroll_down.set_image(resource_service.load_button_texture("down.png"))
     button_object_fields_panel_scroll_down.set_click_method(object_fields_panel.scroll_down)
     state.buttons.append(button_object_fields_panel_scroll_down)
 
@@ -331,7 +354,6 @@ def events():
     global state, modes, cursor_modes, dragging_field, field_dragging_id, field_dragging_type, highlighted_field, field_original_pos, ground_fields_panel, object_fields_panel, map_panel
 
     for event in pygame.event.get():
-        #print(pygame.event.event_name(event.type))
         if event.type == pygame.QUIT:
             pygame.quit()
             exit(0)
@@ -358,7 +380,7 @@ def events():
                 y = mouse_pos[1]-(FIELD_SIZE/2)
 
                 # Place field in center of cursor cross
-                set_dragging_field_position(x, y)
+                set_dragging_field_position(x=x, y=y)
 
                 if map_panel.is_field_within_panel(x, y):
                     highlighted_field = get_nearest_field(x, y)
@@ -382,66 +404,84 @@ def events():
                     cursor.set_mode(cursor_modes.normal_mode)
 
         if event.type == pygame.MOUSEBUTTONDOWN:
+
             # Get field that is clicked by the cursor
             if state.mode == modes.normal_mode:
                 mouse_pos = pygame.mouse.get_pos()
 
-                # Ground & object fields
-                # Determine the panel and drag the field
-                fields = []
-                if ground_fields_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
-                    fields = state.ground_fields
-                elif object_fields_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
-                    fields = state.object_fields
+                if event.button == pygame.BUTTON_WHEELUP:
+                    if ground_fields_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
+                        ground_fields_panel.scroll_up()
+                    elif object_fields_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
+                        object_fields_panel.scroll_up()
 
-                for i in range(len(fields)):
-                    if fields[i].rect.collidepoint(mouse_pos):
-                        x = fields[i].rect.x
-                        y = fields[i].rect.y
-                        # Copy the field from the fields array to dragging_field
-                        dragging_field = Field(x=x, y=y, width=FIELD_SIZE, height=FIELD_SIZE, field_type=fields[i].field_type)
-                        dragging_field.set_image(fields[i].image_path)
-                        field_dragging_id = i
-                        field_dragging_type = fields[i].field_type
-                        field_original_pos = (x, y)
-                        highlighted_field = (x, y)
-                        pygame.mouse.set_pos(x+(FIELD_SIZE/2), y+(FIELD_SIZE/2))
-                        state.mode = modes.field_drag_mode
-                        cursor.set_mode(cursor_modes.dragging_mode)
+                elif event.button == pygame.BUTTON_WHEELDOWN:
+                    if ground_fields_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
+                        ground_fields_panel.scroll_down()
+                    elif object_fields_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
+                        object_fields_panel.scroll_down()
 
-                # Map fields
+                elif event.button == pygame.BUTTON_LEFT:
 
-                dragging_field_set = False
-                for field_type in ["object", "ground"]:
-                    if not dragging_field_set:
-                        for i in range(len(state.map_fields[field_type])):
-                            if state.map_fields[field_type][i].rect.collidepoint(mouse_pos):
-                                dragging_field_set = True
-                                print("Drag Field: " + field_type)
-                                x = state.map_fields[field_type][i].rect.x
-                                y = state.map_fields[field_type][i].rect.y
-                                field_dragging_id = i
-                                field_dragging_type = state.map_fields[field_type][i].field_type
-                                highlighted_field = (x, y)
-                                field_original_pos = (x, y)
-                                pygame.mouse.set_pos(x+(FIELD_SIZE/2), y+(FIELD_SIZE/2))
-                                dragging_field = None
-                                state.mode = modes.field_drag_mode
-                                cursor.set_mode(cursor_modes.dragging_mode)
-                                break
+                    # Ground & object fields
+                    # Determine the panel and drag the field
+                    fields = []
+                    if ground_fields_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
+                        fields = state.ground_fields
+                    elif object_fields_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
+                        fields = state.object_fields
 
-            # If in deleting mode, delete the field that is colliding with the cursor
-            mouse_pos = pygame.mouse.get_pos()
-            if state.mode == modes.field_delete_mode and map_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
-                field_removed = False
-                # First check all object fields. If an object field was found, remove it and stop to prevent deleting the underlaying ground field
-                for field_type in ["object", "ground"]:
-                    if not field_removed:
-                        for i in range(len(state.map_fields[field_type])):
-                            if state.map_fields[field_type][i].rect.collidepoint(mouse_pos):
-                                state.map_fields[field_type].pop(i)
-                                field_removed = True
-                                break
+                    for i in range(len(fields)):
+                        if fields[i].rect.collidepoint(mouse_pos):
+                            x = fields[i].rect.x
+                            y = fields[i].rect.y
+                            # Copy the field from the fields array to dragging_field
+                            dragging_field = Field(x=x, y=y, width=FIELD_SIZE, height=FIELD_SIZE, field_type=fields[i].field_type)
+                            dragging_field.set_image(fields[i].image_data)
+                            field_dragging_id = i
+                            field_dragging_type = fields[i].field_type
+                            field_original_pos = (x, y)
+                            highlighted_field = (x, y)
+                            pygame.mouse.set_pos(x+(FIELD_SIZE/2), y+(FIELD_SIZE/2))
+                            state.mode = modes.field_drag_mode
+                            cursor.set_mode(cursor_modes.dragging_mode)
+                            break
+
+                    # Map fields
+
+                    dragging_field_set = False
+                    for field_type in ["object", "ground"]:
+                        if not dragging_field_set:
+                            for i in range(len(state.map_fields[field_type])):
+                                if state.map_fields[field_type][i].rect.collidepoint(mouse_pos):
+                                    dragging_field_set = True
+                                    print("Drag Field: " + field_type)
+                                    x = state.map_fields[field_type][i].rect.x
+                                    y = state.map_fields[field_type][i].rect.y
+                                    field_dragging_id = i
+                                    field_dragging_type = state.map_fields[field_type][i].field_type
+                                    highlighted_field = (x, y)
+                                    field_original_pos = (x, y)
+                                    pygame.mouse.set_pos(x+(FIELD_SIZE/2), y+(FIELD_SIZE/2))
+                                    dragging_field = None
+                                    state.mode = modes.field_drag_mode
+                                    cursor.set_mode(cursor_modes.dragging_mode)
+                                    break
+
+            elif state.mode == modes.field_delete_mode:
+                if event.button == pygame.BUTTON_LEFT:
+                    mouse_pos = pygame.mouse.get_pos()
+                    # If in deleting mode, delete the field that is colliding with the cursor
+                    if  map_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
+                        field_removed = False
+                        # First check all object fields. If an object field was found, remove it and stop to prevent deleting the underlaying ground field
+                        for field_type in ["object", "ground"]:
+                            if not field_removed:
+                                for i in range(len(state.map_fields[field_type])):
+                                    if state.map_fields[field_type][i].rect.collidepoint(mouse_pos):
+                                        state.map_fields[field_type].pop(i)
+                                        field_removed = True
+                                        break
 
             # Buttons
             if not state.mode == modes.field_drag_mode:
@@ -451,7 +491,7 @@ def events():
                         button.click_event()
 
 
-        if event.type == pygame.MOUSEBUTTONUP:
+        if event.type == pygame.MOUSEBUTTONUP and event.button != pygame.BUTTON_WHEELDOWN and event.button != pygame.BUTTON_WHEELUP:
             if state.mode == modes.field_drag_mode:
                 # Drop field
 
@@ -475,19 +515,6 @@ def events():
                 dragging_field = None
                 state.mode = modes.normal_mode
                 cursor.set_mode(cursor_modes.cross_mode)
-
-        if event.type == pygame.MOUSEWHEEL:
-            mouse_pos = pygame.mouse.get_pos()
-            if ground_fields_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
-                if event.y == 1:
-                    ground_fields_panel.scroll_up()
-                else:
-                    ground_fields_panel.scroll_down()
-            elif object_fields_panel.is_point_within_panel(mouse_pos[0], mouse_pos[1]):
-                if event.y == 1:
-                    object_fields_panel.scroll_up()
-                else:
-                    object_fields_panel.scroll_down()
 
 init()
 load_fields()

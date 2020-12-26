@@ -10,3 +10,7 @@ map_fields = dict({
     "ground": [],
     "object": []
 })
+is_level_loaded = False
+loaded_level = {
+    "name": ""
+}

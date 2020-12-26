@@ -1,15 +1,11 @@
 import os
+from io import BytesIO
 import pygame
 import state
 from enums import modes
 from constants import buttons_path, textures_path, border_thickness, BUTTON_SIZE, FIELD_SIZE
-from tkinter import Tk, filedialog, messagebox
 
-from functions import switch_field_delete_mode
-
-tk_root = Tk()
-# tk_root.overridecolors.redirect(1)
-tk_root.withdraw()
+from functions import switch_field_delete_mode, save_level, open_level
 
 class Panel(pygame.Rect):
     def __init__(self, x, y, width, height, fields_count_x, fields_count_y):
@@ -92,9 +88,9 @@ class Button(pygame.Rect):
         self.width = width
         self.height = height
 
-    def set_image(self, image):
-        self.iamge_path = image
-        self.image = pygame.image.load(os.path.join(buttons_path, image)).convert()
+    def set_image(self, image_data):
+        self.image_data = image_data
+        self.image = pygame.image.load(BytesIO(self.image_data)).convert_alpha()
         self.image = pygame.transform.scale(self.image, (self.width, self.height))
         self.rect = self.image.get_rect()
         self.rect.x = self.x
@@ -119,26 +115,42 @@ class SaveButton(Button):
         super().__init__(x, y, width, height)
 
     def click_event(self):
-        global state, modes
-        state.mode = modes.normal_mode
-        if len(state.map_fields.grounds) == 0 and len(state.map_fields.objects) == 0:
-            messagebox.showwarning("", "There are no fields on the map.")
-            return None
-        file_path = filedialog.asksaveasfilename()
+        global save_level
+        save_level()
+
+class OpenButton(Button):
+    def __init__(self, x, y, width, height):
+        super().__init__(x, y, width, height)
+
+    def click_event(self):
+        global save_level
+        open_level()
+
+class EditButton(Button):
+    def __init__(self, x, y, width, height):
+        super().__init__(x, y, width, height)
+
+    def click_event(self):
+        global save_level
 
 class Field(pygame.Rect):
     def __init__(self, x, y, width, height, field_type):
         super().__init__(x, y, width, height)
-        self.x = x
-        self.y = y
+        # self.x = x
+        # self.y = y
         self.width = FIELD_SIZE
         self.height = FIELD_SIZE
         self.field_type = field_type
 
-    def set_image(self, image_path):
-        self.image_path = image_path
-        self.image = pygame.Surface([FIELD_SIZE, FIELD_SIZE])
-        self.image = pygame.image.load(image_path).convert_alpha()
+    def set_location(self, x, y):
+        self.x = x
+        self.y = y
+        self.rect.x = x
+        self.rect.y = y
+
+    def set_image(self, image_data):
+        self.image_data = image_data
+        self.image = pygame.image.load(BytesIO(self.image_data)).convert_alpha()
         self.image = pygame.transform.scale(self.image, (self.width, self.height))
         self.rect = self.image.get_rect()
         self.rect.x = self.x
