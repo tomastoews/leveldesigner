@@ -2,9 +2,8 @@ import os
 from io import BytesIO
 import pygame
 import state
-from enums import modes
+from enums import modes, field_types
 from constants import buttons_path, textures_path, border_thickness, BUTTON_SIZE, FIELD_SIZE
-
 from functions import switch_field_delete_mode, save_level, open_level
 
 class Panel(pygame.Rect):
@@ -126,13 +125,6 @@ class OpenButton(Button):
         global save_level
         open_level()
 
-class EditButton(Button):
-    def __init__(self, x, y, width, height):
-        super().__init__(x, y, width, height)
-
-    def click_event(self):
-        global save_level
-
 class Field(pygame.Rect):
     def __init__(self, x, y, width, height, field_type):
         super().__init__(x, y, width, height)
@@ -141,6 +133,13 @@ class Field(pygame.Rect):
         self.width = FIELD_SIZE
         self.height = FIELD_SIZE
         self.field_type = field_type
+        if self.field_type == field_types.object:
+            self.object_type = "Collidable"
+
+    def set_object_type(self, object_type):
+        if self.field_type == field_types.object:
+            self.object_type = object_type
+            print(f"Updated object type: {self.object_type}")
 
     def set_location(self, x, y):
         self.x = x
@@ -155,3 +154,6 @@ class Field(pygame.Rect):
         self.rect = self.image.get_rect()
         self.rect.x = self.x
         self.rect.y = self.y
+
+class Window(pygame.Rect):
+    
